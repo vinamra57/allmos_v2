@@ -130,7 +130,9 @@ class Qwen3Attention(nn.Module):
         attn_output = self.attn(q, k, v)
 
         # Output projection
-        output = self.o_proj(attn_output.flatten(1, -1))
+        flattened = attn_output.flatten(1, -1)
+        print(f"[QWEN DEBUG] attn_output: {attn_output.shape}, flattened: {flattened.shape}, o_proj weight: {self.o_proj.weight.shape}")
+        output = self.o_proj(flattened)
         return output
 
 
