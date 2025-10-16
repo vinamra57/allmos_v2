@@ -181,11 +181,7 @@ class Attention(nn.Module):
         context = get_context()
         k_cache, v_cache = self.k_cache, self.v_cache
 
-        # Debug
-        if context.is_prefill:
-            print(f"[ATT DEBUG] Input - q: {q.shape}, k: {k.shape}, v: {v.shape}")
-
-            # Store K/V into cache if cache is allocated
+        # Store K/V into cache if cache is allocated
         if k_cache.numel() and v_cache.numel():
             store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
 
@@ -221,10 +217,6 @@ class Attention(nn.Module):
         else:
             # Fallback: use standard PyTorch attention
             output = self._standard_attention(q, k, v, context, k_cache, v_cache)
-
-        # Debug
-        if context.is_prefill:
-            print(f"[ATT DEBUG] Output - output: {output.shape}")
 
         return output
 
