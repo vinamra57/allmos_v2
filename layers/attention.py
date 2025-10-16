@@ -275,14 +275,19 @@ class Attention(nn.Module):
                     q_seq = q[start_q:end_q]  # [seqlen, num_heads, head_dim]
 
                     # Get K/V from cache for this sequence
+                    # Cache is stored as [num_blocks, block_size, num_kv_heads * head_dim]
+                    # Reshape to [num_blocks, block_size, num_kv_heads, head_dim]
                     block_table = context.block_tables[i]
                     k_seq_list = []
                     v_seq_list = []
                     for block_idx in block_table:
                         if block_idx == -1:
                             break
-                        k_seq_list.append(k_cache[block_idx])
-                        v_seq_list.append(v_cache[block_idx])
+                        # Reshape from flattened to separate heads
+                        k_block = k_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                        v_block = v_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                        k_seq_list.append(k_block)
+                        v_seq_list.append(v_block)
 
                     k_seq = torch.cat(k_seq_list, dim=0)[:context.max_seqlen_k]
                     v_seq = torch.cat(v_seq_list, dim=0)[:context.max_seqlen_k]
@@ -330,6 +335,8 @@ class Attention(nn.Module):
             outputs = []
             for i in range(batch_size):
                 # Get K/V from cache for this sequence
+                # Cache is stored as [num_blocks, block_size, num_kv_heads * head_dim]
+                # Reshape to [num_blocks, block_size, num_kv_heads, head_dim]
                 block_table = context.block_tables[i]
                 seqlen = context.context_lens[i].item()
 
@@ -338,8 +345,11 @@ class Attention(nn.Module):
                 for block_idx in block_table:
                     if block_idx == -1:
                         break
-                    k_seq_list.append(k_cache[block_idx])
-                    v_seq_list.append(v_cache[block_idx])
+                    # Reshape from flattened to separate heads
+                    k_block = k_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                    v_block = v_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                    k_seq_list.append(k_block)
+                    v_seq_list.append(v_block)
 
                 k_seq = torch.cat(k_seq_list, dim=0)[:seqlen]
                 v_seq = torch.cat(v_seq_list, dim=0)[:seqlen]
