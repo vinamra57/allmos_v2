@@ -43,7 +43,7 @@ def main():
     print("\nInitializing engine...")
     llm = LLM(
         model_path,
-        enforce_eager=False,  # Enable CUDA graphs
+        enforce_eager=True,  # Disable CUDA graphs (flash-attn not available)
         max_model_len=4096,
         enable_prefix_caching=True,
     )
