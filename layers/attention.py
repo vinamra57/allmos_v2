@@ -96,7 +96,9 @@ def store_kvcache(
     N, num_heads, head_dim = key.shape
     D = num_heads * head_dim
 
-    if TRITON_AVAILABLE:
+    # Note: Triton kernel disabled due to stride compatibility issues with flattened cache
+    # The PyTorch fallback is fast enough for KV cache storage
+    if False and TRITON_AVAILABLE:
         # Fast path: use Triton kernel
         assert key.stride(-1) == 1 and value.stride(-1) == 1, "Last dim must be contiguous"
         assert key.stride(1) == head_dim and value.stride(1) == head_dim
