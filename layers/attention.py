@@ -365,9 +365,9 @@ class Attention(nn.Module):
 
                 # Reshape: [1, num_heads, 1, head_dim] for query
                 #          [1, num_heads, seqlen, head_dim] for key/value
-                q_seq = q_seq.unsqueeze(0).transpose(1, 2).unsqueeze(2)
-                k_seq = k_seq.unsqueeze(0).transpose(1, 2)
-                v_seq = v_seq.unsqueeze(0).transpose(1, 2)
+                q_seq = q_seq.unsqueeze(0).transpose(1, 2).unsqueeze(2)  # [1, num_heads, 1, head_dim]
+                k_seq = k_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
+                v_seq = v_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
 
                 out = F.scaled_dot_product_attention(
                     q_seq, k_seq, v_seq,
@@ -375,9 +375,9 @@ class Attention(nn.Module):
                     dropout_p=0.0,
                     is_causal=False,  # Not needed for decode (single token)
                     scale=self.scale
-                )
+                )  # Output: [1, num_heads, 1, head_dim]
 
-                outputs.append(out.squeeze(0).squeeze(1))
+                outputs.append(out.squeeze(0).squeeze(1))  # [num_heads, head_dim]
 
             output = torch.stack(outputs, dim=0)  # [batch_size, num_heads, head_dim]
 
