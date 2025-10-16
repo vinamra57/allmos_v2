@@ -130,6 +130,10 @@ class Qwen3Attention(nn.Module):
         attn_output = self.attn(q, k, v)
 
         # Output projection
+        from utils.context import get_context
+        ctx = get_context()
+        if not ctx.is_prefill:
+            print(f"[DECODE DEBUG] attn_output: {attn_output.shape}")
         output = self.o_proj(attn_output.flatten(1, -1))
         return output
 
