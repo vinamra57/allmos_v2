@@ -87,14 +87,14 @@ def store_kvcache(
     Store key/value states into KV cache.
 
     Args:
-        key: [N, num_heads, head_dim] key states
-        value: [N, num_heads, head_dim] value states
-        k_cache: [num_blocks, block_size, num_heads * head_dim] key cache
-        v_cache: [num_blocks, block_size, num_heads * head_dim] value cache
+        key: [N, num_kv_heads, head_dim] key states
+        value: [N, num_kv_heads, head_dim] value states
+        k_cache: [num_blocks, block_size, num_kv_heads * head_dim] key cache
+        v_cache: [num_blocks, block_size, num_kv_heads * head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    N, num_heads, head_dim = key.shape
-    D = num_heads * head_dim
+    N, num_kv_heads, head_dim = key.shape
+    D = num_kv_heads * head_dim
 
     # Note: Triton kernel disabled due to stride compatibility issues with flattened cache
     # The PyTorch fallback is fast enough for KV cache storage
