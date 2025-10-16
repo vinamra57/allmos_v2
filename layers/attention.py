@@ -183,10 +183,6 @@ class Attention(nn.Module):
 
             # Store K/V into cache if cache is allocated
         if k_cache.numel() and v_cache.numel():
-            # Debug: print shapes
-            if context.is_prefill:
-                print(f"[DEBUG] k shape: {k.shape}, v shape: {v.shape}")
-                print(f"[DEBUG] k_cache shape: {k_cache.shape}, expected num_kv_heads: {self.num_kv_heads}")
             store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)
 
         if FLASH_ATTN_AVAILABLE:

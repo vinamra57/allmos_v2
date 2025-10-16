@@ -238,7 +238,7 @@ class ModelRunner(ModelRunnerABC):
         # Allocate KV cache tensor
         # Shape: [2, num_layers, num_blocks, block_size, num_kv_heads, head_dim]
         num_kv_heads = hf_config.num_key_value_heads // self.world_size
-        head_dim = hf_config.hidden_size // hf_config.num_attention_heads
+        head_dim = getattr(hf_config, "head_dim", hf_config.hidden_size // hf_config.num_attention_heads)
 
         self.kv_cache = torch.empty(
             2,  # K and V
