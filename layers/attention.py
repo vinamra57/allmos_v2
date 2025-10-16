@@ -218,6 +218,24 @@ class Attention(nn.Module):
 
         return output
 
+    def _repeat_kv(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """
+        Repeat K/V heads to match the number of Q heads (for GQA).
+
+        Args:
+            hidden_states: [batch_size, seq_len, num_kv_heads, head_dim]
+
+        Returns:
+            Repeated tensor: [batch_size, seq_len, num_heads, head_dim]
+        """
+        if self.num_kv_heads == self.num_heads:
+            return hidden_states
+
+        n_rep = self.num_heads // self.num_kv_heads
+        # Repeat K/V heads to match Q heads
+        # [..., num_kv_heads, head_dim] -> [..., num_heads, head_dim]
+        return hidden_states.repeat_interleave(n_rep, dim=-2)
+
     def _standard_attention(
         self,
         q: torch.Tensor,
@@ -231,7 +249,12 @@ class Attention(nn.Module):
         Fallback attention using PyTorch's scaled_dot_product_attention.
 
         This is used when flash_attn is not available (GLIBC < 2.32).
+        Handles Grouped Query Attention (GQA) by repeating K/V heads.
         """
+        # Repeat K/V heads if using GQA
+        k = self._repeat_kv(k)
+        v = self._repeat_kv(v)
+
         if context.is_prefill:
             # Prefill: process all tokens at once
             # Need to handle variable-length sequences and causal masking
@@ -263,6 +286,10 @@ class Attention(nn.Module):
 
                     k_seq = torch.cat(k_seq_list, dim=0)[:context.max_seqlen_k]
                     v_seq = torch.cat(v_seq_list, dim=0)[:context.max_seqlen_k]
+
+                    # Repeat K/V for GQA
+                    k_seq = self._repeat_kv(k_seq)
+                    v_seq = self._repeat_kv(v_seq)
 
                     # Reshape for attention: [1, num_heads, seqlen, head_dim]
                     q_seq = q_seq.unsqueeze(0).transpose(1, 2)
@@ -316,6 +343,10 @@ class Attention(nn.Module):
 
                 k_seq = torch.cat(k_seq_list, dim=0)[:seqlen]
                 v_seq = torch.cat(v_seq_list, dim=0)[:seqlen]
+
+                # Repeat K/V for GQA
+                k_seq = self._repeat_kv(k_seq)
+                v_seq = self._repeat_kv(v_seq)
 
                 # Single query token
                 q_seq = q[i:i+1]  # [1, num_heads, head_dim]
