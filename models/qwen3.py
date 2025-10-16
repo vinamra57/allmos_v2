@@ -12,6 +12,8 @@ Architecture:
 - SwiGLU activation in FFN
 - RMSNorm instead of LayerNorm
 """
+from __future__ import annotations
+
 import torch
 from torch import nn
 import torch.distributed as dist

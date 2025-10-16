@@ -6,6 +6,8 @@ Design Philosophy:
 - Use torch.compile for kernel fusion
 - Cache computation across different model instantiations
 """
+from __future__ import annotations
+
 from functools import lru_cache
 import torch
 from torch import nn

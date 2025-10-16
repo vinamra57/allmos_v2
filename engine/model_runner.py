@@ -18,6 +18,8 @@ Architecture:
 - Rank 1-N: Worker processes for tensor parallelism (if tp_size > 1)
 - Communication via shared memory (IPC) for low latency
 """
+from __future__ import annotations
+
 import pickle
 import torch
 import torch.distributed as dist

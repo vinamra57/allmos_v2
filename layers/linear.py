@@ -11,6 +11,8 @@ Tensor Parallelism Strategies:
 - Row-parallel: Split input dimension (e.g., output projection)
 - Replicated: No sharding (e.g., small layers)
 """
+from __future__ import annotations
+
 import torch
 from torch import nn
 import torch.nn.functional as F

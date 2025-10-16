@@ -5,6 +5,8 @@ Design Philosophy:
 - Vocabulary parallelism for multi-GPU setups
 - Efficient gather/scatter operations for distributed embeddings
 """
+from __future__ import annotations
+
 import torch
 from torch import nn
 import torch.nn.functional as F

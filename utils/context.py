@@ -11,6 +11,8 @@ This pattern is used by nano-vLLM to efficiently pass attention context
 (sequence lengths, block tables, etc.) to Flash Attention without
 modifying every function signature.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
 import torch
 

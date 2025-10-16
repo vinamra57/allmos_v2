@@ -13,6 +13,8 @@ Architecture:
 - Worker processes (rank 1-N): Run model forward passes
 - Communication via multiprocessing events and shared memory
 """
+from __future__ import annotations
+
 import atexit
 from dataclasses import fields
 from time import perf_counter

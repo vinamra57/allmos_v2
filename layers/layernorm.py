@@ -11,6 +11,8 @@ Optimization Notes (from benchmark report):
 - Reduces number of GPU kernel launches
 - Saves memory bandwidth by avoiding intermediate tensors
 """
+from __future__ import annotations
+
 import torch
 from torch import nn
 
