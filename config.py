@@ -74,7 +74,7 @@ class Config:
             Number of KV cache blocks that can fit in memory
         """
         num_kv_heads = self.hf_config.num_key_value_heads // self.tensor_parallel_size
-        head_dim = self.hf_config.hidden_size // self.hf_config.num_attention_heads
+        head_dim = getattr(self.hf_config, "head_dim", self.hf_config.hidden_size // self.hf_config.num_attention_heads)
 
         # Calculate bytes per block (for both K and V cache)
         # 2 (K and V) × num_layers × block_size × num_kv_heads × head_dim × dtype_size
