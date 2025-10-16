@@ -1,0 +1,16 @@
+# Core dependencies (required)
+torch>=2.4.0
+transformers>=4.51.0
+xxhash>=3.0.0
+safetensors>=0.4.0
+tqdm>=4.65.0
+numpy>=1.26.0
+
+# Optional optimizations (highly recommended, but will fallback if unavailable)
+# Note: flash-attn and triton require GLIBC 2.32+ (Ubuntu 22.04+, Debian 12+)
+# If on older systems (Debian 11, GLIBC 2.31), system will use PyTorch fallbacks
+# flash-attn>=2.0.0
+# triton>=3.0.0
+
+# For development/testing
+pytest>=7.0.0
