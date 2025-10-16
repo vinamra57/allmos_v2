@@ -363,9 +363,9 @@ class Attention(nn.Module):
                 # Single query token
                 q_seq = q[i:i+1]  # [1, num_heads, head_dim]
 
-                # Reshape: [1, num_heads, 1, head_dim] for query
-                #          [1, num_heads, seqlen, head_dim] for key/value
-                q_seq = q_seq.unsqueeze(0).transpose(1, 2).unsqueeze(2)  # [1, num_heads, 1, head_dim]
+                # Reshape: [batch=1, num_heads, seq_len=1, head_dim] for query
+                #          [batch=1, num_heads, seqlen, head_dim] for key/value
+                q_seq = q_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, 1, head_dim]
                 k_seq = k_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
                 v_seq = v_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
 
