@@ -252,13 +252,13 @@ class ModelRunner(ModelRunnerABC):
         )
 
         # Assign cache slices to attention layers
-        # Reshape from [num_blocks, block_size, num_kv_heads, head_dim]
-        # to [num_blocks, block_size, num_kv_heads * head_dim] for efficient storage
+        # Keep shape as [num_blocks, block_size, num_kv_heads, head_dim]
+        # Flash Attention requires separate head dimensions for GQA
         layer_id = 0
         for module in self.model.modules():
             if hasattr(module, "k_cache") and hasattr(module, "v_cache"):
-                module.k_cache = self.kv_cache[0, layer_id].flatten(-2, -1)
-                module.v_cache = self.kv_cache[1, layer_id].flatten(-2, -1)
+                module.k_cache = self.kv_cache[0, layer_id]
+                module.v_cache = self.kv_cache[1, layer_id]
                 layer_id += 1
 
     def prepare_block_tables(self, seqs: List[Sequence]) -> torch.Tensor:
