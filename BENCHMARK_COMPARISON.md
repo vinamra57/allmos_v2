@@ -63,40 +63,36 @@ Both VMs use identical hardware: **g2-standard-4** (L4 GPU, 4 vCPUs, 16GB RAM)
 
 ## Benchmark Results
 
-### Performance Metrics
+### Performance Metrics (Identical Benchmark Script + CUDA Graphs)
 
 | Runtime | Throughput (tok/s) | Total Time (s) | Total Tokens | Speedup vs Original |
 |---------|-------------------|----------------|--------------|---------------------|
-| **nano-vLLM** | **1,768.81** | 75.74 | 133,966 | **77.5x** |
-| **allmos_v2** | **1,447.30** | 92.56 | 133,966 | **63.5x** |
+| **nano-vLLM** | **1,759.82** | 76.12 | 133,966 | **77.1x** |
+| **allmos_v2** | **1,738.82** | 77.04 | 133,966 | **76.2x** |
 | Original allmos | 22.81 | ~5,872 | 133,966 | 1.0x |
+
+**Performance Gap: 1.2%** (nano-vLLM faster)
 
 ### Performance Analysis
 
-**nano-vLLM leads by 22% in throughput:**
-- 321.51 tokens/sec faster
-- 16.82 seconds (18%) quicker execution
-- Higher decode speed: ~162 tok/s vs ~26 tok/s per sequence
+**With CUDA graphs enabled (`enforce_eager=False`), allmos_v2 achieves near-identical performance:**
+- Only 21 tokens/sec difference (1.2%)
+- Decode speed: ~162 tok/s for both implementations
+- Flash Attention with GQA fully operational in both
 
 **allmos_v2 achievements:**
-- ✅ Meets/exceeds original target (1,434 tok/s)
+- ✅ **Matches nano-vLLM performance (98.8% parity)**
 - ✅ Flash Attention with GQA fully operational
-- ✅ 63.5x speedup over original implementation
+- ✅ 76.2x speedup over original implementation
 - ✅ Validates coding agent-generated runtime viability
+
+**Key Finding**: The previous 22% gap was due to `enforce_eager=True` disabling CUDA graphs. With CUDA graphs enabled, performance is essentially identical.
 
 ---
 
 ## Key Technical Differences
 
-### 1. Decode Path Optimization
-
-The primary performance gap lies in the decode phase:
-- **nano-vLLM decode**: ~162 tok/s per sequence
-- **allmos_v2 decode**: ~26 tok/s per sequence
-
-This 6.2x difference in decode speed accounts for the overall throughput gap.
-
-### 2. KV Cache Management (Now Fixed)
+### 1. KV Cache Management (Fixed)
 
 The critical GQA compatibility issue was resolved in commit `73f4f75`:
 
