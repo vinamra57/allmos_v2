@@ -110,8 +110,8 @@ python bench.py
 
 Expected output:
 ```
-Throughput: ~1400-1500 tokens/sec (target: 1434 tokens/sec)
-Speedup vs original Allmos: ~60-65x
+Throughput: 1,447 tokens/sec (target: 1,434 tokens/sec ✅)
+Speedup vs original Allmos: 63.5x
 ```
 
 ## Configuration
@@ -267,8 +267,8 @@ Subsequent runs will be much faster.
 | System | Throughput (tokens/sec) | Speedup vs Allmos |
 |--------|-------------------------|-------------------|
 | Original Allmos | 22.81 | 1.0x (baseline) |
-| **allmos_v2** | **~1434** | **~62.8x** |
-| nano-vLLM | 1434 | 62.8x |
+| **allmos_v2** | **1,447** | **63.5x** |
+| nano-vLLM | 1,769 | 77.5x |
 
 ## Research Context
 

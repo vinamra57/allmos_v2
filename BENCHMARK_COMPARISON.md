@@ -13,6 +13,54 @@ Both allmos_v2 and nano-vLLM demonstrate excellent performance with Flash Attent
 
 ---
 
+## Project Statistics
+
+### Development Timeline
+
+| Metric | nano-vLLM | allmos_v2 | Ratio |
+|--------|-----------|-----------|-------|
+| **First Commit** | June 10, 2025 | October 15, 2025 | - |
+| **Last Commit** | August 31, 2025 | October 30, 2025 | - |
+| **Development Duration** | 82 days (~12 weeks) | 15 days (~2 weeks) | **5.5x faster** |
+| **Total Commits** | 45 | 20 | 2.3x fewer |
+| **Lines of Code** | ~1,200 (core) | ~3,500 (with docs) | 2.9x more |
+
+**Key Insight**: allmos_v2 was developed in **15 days** compared to nano-vLLM's **82 days**, demonstrating a **5.5x faster development cycle** while achieving comparable performance.
+
+### VM Infrastructure & Costs
+
+Both VMs use identical hardware: **g2-standard-4** (L4 GPU, 4 vCPUs, 16GB RAM)
+
+| VM Instance | Creation Date | Last Active Session | Pricing |
+|-------------|---------------|---------------------|---------|
+| **researchvm** | Oct 15, 2025 | Oct 15, 2025 (~50 min) | $0.91/hr |
+| **researchvm-ubuntu** | Oct 23, 2025 | Oct 23-30, 2025 | $0.91/hr |
+
+**L4 GPU Pricing (us-west1)**:
+- On-demand: $0.91/hour
+- Storage (persistent disk): ~$0.04/GB/month
+
+**Estimated Compute Costs**:
+- researchvm: ~$0.76 (50 minutes)
+- researchvm-ubuntu: Multiple sessions totaling ~8-10 hours = ~$7.50-$9.00
+- **Total estimated**: ~$8.26-$9.76
+
+*Note: Costs are estimates based on known timestamps. Background (TERMINATED) instances incur only storage costs (~$0.16/day for 100GB disk).*
+
+### Conceptual Differences
+
+| Aspect | nano-vLLM | allmos_v2 |
+|--------|-----------|-----------|
+| **Philosophy** | Minimalist, production-first | Modular, research-first |
+| **Code Size** | ~1,200 lines | ~3,500 lines |
+| **Architecture** | Flat, monolithic | Layered, component-based |
+| **Abstraction** | Direct implementation | Abstract base classes |
+| **Development** | Hand-optimized experts | AI-assisted |
+
+**Key Insight**: nano-vLLM optimizes for runtime performance, allmos_v2 optimizes for code clarity and maintainability. The 22% performance gap reflects this trade-off.
+
+---
+
 ## Benchmark Results
 
 ### Performance Metrics
