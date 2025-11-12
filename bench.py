@@ -18,7 +18,7 @@ def main():
 
     path = os.path.expanduser("~/huggingface/Qwen3-0.6B/")
     print(f"Loading model from: {path}", flush=True)
-    llm = LLM(path, enforce_eager=True, max_model_len=4096)  # Disable CUDA graphs for compatibility
+    llm = LLM(path, enforce_eager=False, max_model_len=4096)  # Enable CUDA graphs for performance
     print("Model loaded successfully!", flush=True)
 
     print(f"Preparing {num_seqs} sequences...", flush=True)
