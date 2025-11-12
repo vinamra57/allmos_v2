@@ -89,42 +89,32 @@ def store_kvcache(
     Args:
         key: [N, num_kv_heads, head_dim] key states
         value: [N, num_kv_heads, head_dim] value states
-        k_cache: [num_blocks, block_size, num_kv_heads * head_dim] key cache
-        v_cache: [num_blocks, block_size, num_kv_heads * head_dim] value cache
+        k_cache: [num_blocks, block_size, num_kv_heads, head_dim] key cache
+        v_cache: [num_blocks, block_size, num_kv_heads, head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    N, num_kv_heads, head_dim = key.shape
-    D = num_kv_heads * head_dim
+    N = key.size(0)
 
-    # Note: Triton kernel disabled due to stride compatibility issues with flattened cache
-    # The PyTorch fallback is fast enough for KV cache storage
-    if False and TRITON_AVAILABLE:
-        # Fast path: use Triton kernel
-        assert key.stride(-1) == 1 and value.stride(-1) == 1, "Last dim must be contiguous"
-        assert key.stride(1) == head_dim and value.stride(1) == head_dim
-        assert k_cache.stride(1) == D and v_cache.stride(1) == D
-        assert slot_mapping.numel() == N
+    # Vectorized storage using advanced indexing
+    # Filter out padding tokens (slot == -1)
+    valid_mask = slot_mapping != -1
+    if not valid_mask.any():
+        return  # No valid slots to store
 
-        store_kvcache_kernel[(N,)](
-            key, key.stride(0),
-            value, value.stride(0),
-            k_cache, v_cache,
-            slot_mapping,
-            D
-        )
-    else:
-        # Fallback: use PyTorch indexing
-        key = key.reshape(N, D)
-        value = value.reshape(N, D)
+    valid_slots = slot_mapping[valid_mask]
+    valid_keys = key[valid_mask]
+    valid_values = value[valid_mask]
 
-        for i in range(N):
-            slot = slot_mapping[i].item()
-            if slot == -1:
-                continue
-            block_idx = slot // k_cache.size(1)
-            slot_idx = slot % k_cache.size(1)
-            k_cache[block_idx, slot_idx] = key[i]
-            v_cache[block_idx, slot_idx] = value[i]
+    # Compute block indices and slot indices in parallel
+    block_size = k_cache.size(1)
+    block_indices = valid_slots // block_size
+    slot_indices = valid_slots % block_size
+
+    # Vectorized assignment using advanced indexing
+    # Cache shape is [blocks, block_size, heads, dim]
+    # Keys/values shape is [M, heads, dim] where M = number of valid tokens
+    k_cache[block_indices, slot_indices] = valid_keys
+    v_cache[block_indices, slot_indices] = valid_values
 
 
 class Attention(nn.Module):
@@ -267,7 +257,7 @@ class Attention(nn.Module):
                 batch_size = context.cu_seqlens_q.size(0) - 1
                 max_seqlen = context.max_seqlen_k
 
-                # Simple fallback: process each sequence separately
+                # Process each sequence separately
                 outputs = []
                 for i in range(batch_size):
                     start_q = context.cu_seqlens_q[i].item()
@@ -277,19 +267,16 @@ class Attention(nn.Module):
                     q_seq = q[start_q:end_q]  # [seqlen, num_heads, head_dim]
 
                     # Get K/V from cache for this sequence
-                    # Cache is stored as [num_blocks, block_size, num_kv_heads * head_dim]
-                    # Reshape to [num_blocks, block_size, num_kv_heads, head_dim]
+                    # Cache shape is [num_blocks, block_size, num_kv_heads, head_dim]
                     block_table = context.block_tables[i]
                     k_seq_list = []
                     v_seq_list = []
                     for block_idx in block_table:
                         if block_idx == -1:
                             break
-                        # Reshape from flattened to separate heads
-                        k_block = k_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
-                        v_block = v_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
-                        k_seq_list.append(k_block)
-                        v_seq_list.append(v_block)
+                        # No reshape needed - cache already has separate head dimension
+                        k_seq_list.append(k_cache[block_idx])
+                        v_seq_list.append(v_cache[block_idx])
 
                     k_seq = torch.cat(k_seq_list, dim=0)[:context.max_seqlen_k]
                     v_seq = torch.cat(v_seq_list, dim=0)[:context.max_seqlen_k]
@@ -337,8 +324,7 @@ class Attention(nn.Module):
             outputs = []
             for i in range(batch_size):
                 # Get K/V from cache for this sequence
-                # Cache is stored as [num_blocks, block_size, num_kv_heads * head_dim]
-                # Reshape to [num_blocks, block_size, num_kv_heads, head_dim]
+                # Cache shape is [num_blocks, block_size, num_kv_heads, head_dim]
                 block_table = context.block_tables[i]
                 seqlen = context.context_lens[i].item()
 
@@ -347,11 +333,9 @@ class Attention(nn.Module):
                 for block_idx in block_table:
                     if block_idx == -1:
                         break
-                    # Reshape from flattened to separate heads
-                    k_block = k_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
-                    v_block = v_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
-                    k_seq_list.append(k_block)
-                    v_seq_list.append(v_block)
+                    # No reshape needed - cache already has separate head dimension
+                    k_seq_list.append(k_cache[block_idx])
+                    v_seq_list.append(v_cache[block_idx])
 
                 k_seq = torch.cat(k_seq_list, dim=0)[:seqlen]
                 v_seq = torch.cat(v_seq_list, dim=0)[:seqlen]

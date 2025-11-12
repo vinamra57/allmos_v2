@@ -279,11 +279,12 @@ class ModelRunner(ModelRunnerABC):
             seq.block_table + [-1] * (max_len - len(seq.block_table))
             for seq in seqs
         ]
+        # Create directly on GPU to avoid host-device transfer
         block_tables = torch.tensor(
             block_tables,
             dtype=torch.int32,
-            pin_memory=True
-        ).cuda(non_blocking=True)
+            device="cuda"
+        )
         return block_tables
 
     def prepare_prefill(self, seqs: List[Sequence]) -> tuple:
@@ -342,12 +343,12 @@ class ModelRunner(ModelRunnerABC):
         if cu_seqlens_k[-1] > cu_seqlens_q[-1]:
             block_tables = self.prepare_block_tables(seqs)
 
-        # Convert to tensors
-        input_ids = torch.tensor(input_ids, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)
-        positions = torch.tensor(positions, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)
-        cu_seqlens_q = torch.tensor(cu_seqlens_q, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
-        cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
-        slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
+        # Convert to tensors - create directly on GPU for better performance
+        input_ids = torch.tensor(input_ids, dtype=torch.int64, device="cuda")
+        positions = torch.tensor(positions, dtype=torch.int64, device="cuda")
+        cu_seqlens_q = torch.tensor(cu_seqlens_q, dtype=torch.int32, device="cuda")
+        cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, device="cuda")
+        slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, device="cuda")
 
         # Set attention context
         set_context(
@@ -389,11 +390,11 @@ class ModelRunner(ModelRunnerABC):
             slot = seq.block_table[-1] * self.block_size + seq.last_block_num_tokens - 1
             slot_mapping.append(slot)
 
-        # Convert to tensors
-        input_ids = torch.tensor(input_ids, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)
-        positions = torch.tensor(positions, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)
-        slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
-        context_lens = torch.tensor(context_lens, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)
+        # Convert to tensors - create directly on GPU for better performance
+        input_ids = torch.tensor(input_ids, dtype=torch.int64, device="cuda")
+        positions = torch.tensor(positions, dtype=torch.int64, device="cuda")
+        slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, device="cuda")
+        context_lens = torch.tensor(context_lens, dtype=torch.int32, device="cuda")
         block_tables = self.prepare_block_tables(seqs)
 
         # Set attention context
@@ -420,8 +421,8 @@ class ModelRunner(ModelRunnerABC):
         return torch.tensor(
             temperatures,
             dtype=torch.float32,
-            pin_memory=True
-        ).cuda(non_blocking=True)
+            device="cuda"
+        )
 
     @torch.inference_mode()
     def run_model(
