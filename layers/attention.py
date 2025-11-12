@@ -93,18 +93,21 @@ def store_kvcache(
         v_cache: [num_blocks, block_size, num_kv_heads, head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    N = key.size(0)
-    block_size = k_cache.size(1)
+    # Vectorized storage - CUDA graph compatible (no .item() calls)
+    valid_mask = slot_mapping >= 0
+    if not valid_mask.any():
+        return
 
-    # Simple loop-based storage (baseline implementation)
-    for i in range(N):
-        slot = slot_mapping[i].item()
-        if slot == -1:
-            continue
-        block_idx = slot // block_size
-        slot_idx = slot % block_size
-        k_cache[block_idx, slot_idx] = key[i]
-        v_cache[block_idx, slot_idx] = value[i]
+    valid_slots = slot_mapping[valid_mask]
+    valid_keys = key[valid_mask]
+    valid_values = value[valid_mask]
+
+    block_size = k_cache.size(1)
+    block_indices = valid_slots // block_size
+    slot_indices = valid_slots % block_size
+
+    k_cache[block_indices, slot_indices] = valid_keys
+    v_cache[block_indices, slot_indices] = valid_values
 
 
 class Attention(nn.Module):
