@@ -394,6 +394,6 @@ class Attention(nn.Module):
                 scale=self.scale
             )  # [batch, heads, 1, dim]
 
-            output = output.squeeze(2).transpose(1, 2).squeeze(1)  # [batch, heads, dim]
+            output = output.squeeze(2)  # [batch, heads, dim]
 
         return output
