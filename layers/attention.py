@@ -331,69 +331,53 @@ class Attention(nn.Module):
                 output = output.squeeze(0).transpose(0, 1)  # [N, num_heads, head_dim]
         else:
             # Decode: single token per sequence, use KV cache
-            # Optimized batched implementation
             batch_size = q.size(0)
-            max_context_len = torch.max(context.context_lens).item()
 
-            # Gather K/V from cache for all sequences in parallel
-            # block_tables shape: [batch_size, max_blocks]
-            # We'll gather blocks and slice to max_context_len
-            max_blocks = (max_context_len + k_cache.size(1) - 1) // k_cache.size(1)
-
-            # Reshape cache blocks for gathering: [num_blocks, block_size, heads, dim]
-            # -> [num_blocks, block_size * heads * dim] for simpler gathering
-            block_size = k_cache.size(1)
-
-            # Use block tables to gather KV cache - this batches the lookup
-            # For each sequence, concatenate its blocks
-            k_seqs = []
-            v_seqs = []
+            outputs = []
             for i in range(batch_size):
+                # Get K/V from cache for this sequence
+                # Cache is stored as [num_blocks, block_size, num_kv_heads * head_dim]
+                # Reshape to [num_blocks, block_size, num_kv_heads, head_dim]
+                block_table = context.block_tables[i]
                 seqlen = context.context_lens[i].item()
-                blocks_needed = (seqlen + block_size - 1) // block_size
-                block_indices = context.block_tables[i, :blocks_needed]
 
-                # Gather blocks for this sequence
-                k_blocks = k_cache[block_indices]  # [blocks, block_size, heads, dim]
-                v_blocks = v_cache[block_indices]
+                k_seq_list = []
+                v_seq_list = []
+                for block_idx in block_table:
+                    if block_idx == -1:
+                        break
+                    # Reshape from flattened to separate heads
+                    k_block = k_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                    v_block = v_cache[block_idx].view(-1, self.num_kv_heads, self.head_dim)
+                    k_seq_list.append(k_block)
+                    v_seq_list.append(v_block)
 
-                # Reshape to [seqlen, heads, dim]
-                k_seq = k_blocks.reshape(-1, self.num_kv_heads, self.head_dim)[:seqlen]
-                v_seq = v_blocks.reshape(-1, self.num_kv_heads, self.head_dim)[:seqlen]
+                k_seq = torch.cat(k_seq_list, dim=0)[:seqlen]
+                v_seq = torch.cat(v_seq_list, dim=0)[:seqlen]
 
-                # Repeat for GQA
+                # Repeat K/V for GQA
                 k_seq = self._repeat_kv(k_seq)
                 v_seq = self._repeat_kv(v_seq)
 
-                k_seqs.append(k_seq)
-                v_seqs.append(v_seq)
+                # Single query token
+                q_seq = q[i:i+1]  # [1, num_heads, head_dim]
 
-            # Pad to max length for batched attention
-            k_padded = torch.nn.utils.rnn.pad_sequence(k_seqs, batch_first=True)
-            v_padded = torch.nn.utils.rnn.pad_sequence(v_seqs, batch_first=True)
+                # Reshape: [batch=1, num_heads, seq_len=1, head_dim] for query
+                #          [batch=1, num_heads, seqlen, head_dim] for key/value
+                q_seq = q_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, 1, head_dim]
+                k_seq = k_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
+                v_seq = v_seq.unsqueeze(0).transpose(1, 2)  # [1, num_heads, seqlen, head_dim]
 
-            # Reshape for batched attention
-            # Q: [batch, heads, 1, dim]
-            # K,V: [batch, heads, seqlen, dim]
-            q = q.unsqueeze(2)  # [batch, heads, 1, dim]
-            k_padded = k_padded.transpose(1, 2)  # [batch, heads, seqlen, dim]
-            v_padded = v_padded.transpose(1, 2)  # [batch, heads, seqlen, dim]
+                out = F.scaled_dot_product_attention(
+                    q_seq, k_seq, v_seq,
+                    attn_mask=None,
+                    dropout_p=0.0,
+                    is_causal=False,  # Not needed for decode (single token)
+                    scale=self.scale
+                )  # Output: [1, num_heads, 1, head_dim]
 
-            # Create attention mask for variable lengths
-            seqlens = context.context_lens
-            max_len = k_padded.size(2)
-            mask = torch.arange(max_len, device=seqlens.device).unsqueeze(0) < seqlens.unsqueeze(1)
-            mask = mask.unsqueeze(1).unsqueeze(2)  # [batch, 1, 1, seqlen]
+                outputs.append(out.squeeze(0).squeeze(1))  # [num_heads, head_dim]
 
-            # Batched attention
-            output = F.scaled_dot_product_attention(
-                q, k_padded, v_padded,
-                attn_mask=mask,
-                dropout_p=0.0,
-                is_causal=False,
-                scale=self.scale
-            )  # [batch, heads, 1, dim]
-
-            output = output.squeeze(2)  # [batch, heads, dim]
+            output = torch.stack(outputs, dim=0)  # [batch_size, num_heads, head_dim]
 
         return output
