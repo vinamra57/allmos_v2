@@ -34,7 +34,7 @@ def main():
     print("Starting main benchmark...", flush=True)
     sys.stdout.flush()
     t = time.time()
-    llm.generate(prompt_token_ids, sampling_params, use_tqdm=True)
+    llm.generate(prompt_token_ids, sampling_params, use_tqdm=False)
     elapsed = time.time() - t
 
     throughput = total_tokens / elapsed
