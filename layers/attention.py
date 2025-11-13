@@ -375,9 +375,9 @@ class Attention(nn.Module):
             # Reshape for batched attention
             # Q: [batch, heads, 1, dim]
             # K,V: [batch, heads, seqlen, dim]
-            q = q.unsqueeze(2).transpose(1, 2)  # [batch, heads, 1, dim]
+            q = q.unsqueeze(2)  # [batch, heads, 1, dim]
             k_padded = k_padded.transpose(1, 2)  # [batch, heads, seqlen, dim]
-            v_padded = v_padded.transpose(1, 2)
+            v_padded = v_padded.transpose(1, 2)  # [batch, heads, seqlen, dim]
 
             # Create attention mask for variable lengths
             seqlens = context.context_lens
