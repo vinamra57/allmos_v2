@@ -93,11 +93,8 @@ def store_kvcache(
         v_cache: [num_blocks, block_size, num_kv_heads, head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    # Vectorized storage - CUDA graph compatible (no .item() calls)
+    # Vectorized storage - CUDA graph compatible (no CPU-GPU sync)
     valid_mask = slot_mapping >= 0
-    if not valid_mask.any():
-        return
-
     valid_slots = slot_mapping[valid_mask]
     valid_keys = key[valid_mask]
     valid_values = value[valid_mask]
@@ -106,6 +103,7 @@ def store_kvcache(
     block_indices = valid_slots // block_size
     slot_indices = valid_slots % block_size
 
+    # This handles empty case gracefully - indexing with empty tensors is a no-op
     k_cache[block_indices, slot_indices] = valid_keys
     v_cache[block_indices, slot_indices] = valid_values
 
