@@ -114,9 +114,8 @@ def store_kvcache(
         )
     else:
         # Fallback: use PyTorch indexing
-        key = key.reshape(N, D)
-        value = value.reshape(N, D)
-
+        # Cache shape: [num_blocks, block_size, num_kv_heads, head_dim]
+        # Key/value shape: [N, num_kv_heads, head_dim]
         for i in range(N):
             slot = slot_mapping[i].item()
             if slot == -1:
