@@ -240,7 +240,8 @@ if __name__ == "__main__":
 
     # Original
     with torch.no_grad():
-        y_original = linear.cuda()(x)
+        linear_fp16 = linear.cuda().to(torch.float16)
+        y_original = linear_fp16(x)
 
     # FP8
     with torch.no_grad():
