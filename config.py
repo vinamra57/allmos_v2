@@ -32,6 +32,7 @@ class Config:
     enable_cuda_graphs: bool = True
     enable_prefix_caching: bool = True
     enforce_eager: bool = False
+    enable_fp8: bool = False  # FP8 quantization (1.6-1.8x speedup, 50% memory savings)
 
     # Parallelism
     tensor_parallel_size: int = 1

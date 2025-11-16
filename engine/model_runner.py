@@ -90,6 +90,14 @@ class ModelRunner(ModelRunnerABC):
         print(f"[Rank {rank}] Loading model...")
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
+
+        # FP8 quantization if enabled
+        if config.enable_fp8:
+            print(f"[Rank {rank}] Converting model to FP8...")
+            from utils.fp8_quantization import convert_linear_to_fp8
+            convert_linear_to_fp8(self.model)
+            print(f"[Rank {rank}] FP8 conversion complete (50% memory savings)")
+
         self.model.eval()
 
         # Create sampler (only rank 0 samples)
