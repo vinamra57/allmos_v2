@@ -198,7 +198,7 @@ class BlockManager(BlockManagerABC):
         """
         Check if we can append a token to sequence.
 
-        Returns False if we're at block boundary and no free blocks exist.
+        Returns False if we need a new block and no free blocks exist.
 
         Args:
             seq: Sequence to check
@@ -206,9 +206,11 @@ class BlockManager(BlockManagerABC):
         Returns:
             True if append is possible
         """
-        # Need new block if we're at block boundary (last block is full)
-        need_new_block = (len(seq) % self.block_size == 1)
-        return len(self.free_block_ids) >= need_new_block
+        # Calculate how many blocks we'll need after appending one token
+        needed_blocks = ((len(seq) + 1) + self.block_size - 1) // self.block_size
+        current_blocks = len(seq.block_table)
+        need_new_block = (needed_blocks > current_blocks)
+        return len(self.free_block_ids) >= (1 if need_new_block else 0)
 
     def may_append(self, seq: Sequence) -> None:
         """
