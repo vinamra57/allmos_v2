@@ -225,6 +225,9 @@ class BlockManager(BlockManagerABC):
 
         if len(seq) % self.block_size == 1:
             # Last block is full, allocate new one
+            if last_block.hash == -1:
+                print(f"DEBUG: may_append() error - len(seq)={len(seq)}, block_table={block_table}, last_block.block_id={last_block.block_id}, last_block.hash={last_block.hash}")
+                print(f"DEBUG: num_prompt_tokens={seq.num_prompt_tokens}, num_prefill_tokens_computed={seq.num_prefill_tokens_computed}")
             assert last_block.hash != -1, "Last block should have hash when full"
             block_id = self.free_block_ids[0]
             self._allocate_block(block_id)
