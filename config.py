@@ -25,7 +25,7 @@ class Config:
     prefill_chunk_size: int = 512  # Chunked prefill: process long prompts in chunks
 
     # Memory configuration
-    gpu_memory_utilization: float = 0.95  # Increased from 0.9 for more KV cache blocks
+    gpu_memory_utilization: float = 0.90  # Balance between KV cache and activation memory
     kvcache_block_size: int = 256
     num_kvcache_blocks: int = -1  # Auto-computed
 
