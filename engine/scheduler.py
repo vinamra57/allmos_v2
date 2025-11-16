@@ -210,6 +210,9 @@ class Scheduler(SchedulerABC):
             was_prefill: Whether this batch included any prefill
         """
         for seq, token_id in zip(seqs, token_ids):
+            # Convert tensor to int
+            token_id = int(token_id.item()) if hasattr(token_id, 'item') else int(token_id)
+
             # Check if this sequence was doing prefill
             if was_prefill and seq.has_remaining_prefill:
                 # Mark prefill chunk as computed (don't append token yet)

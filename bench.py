@@ -21,22 +21,9 @@ def main():
     t = time.time()
     llm.generate(prompt_token_ids, sampling_params, use_tqdm=False)
     t = (time.time() - t)
-
-    # Calculate total tokens (prompt + completion)
-    total_prompt_tokens = sum(len(p) for p in prompt_token_ids)
-    total_completion_tokens = sum(sp.max_tokens for sp in sampling_params)
-    total_tokens = total_prompt_tokens + total_completion_tokens
-
+    total_tokens = sum(sp.max_tokens for sp in sampling_params)
     throughput = total_tokens / t
-    print(f"\n{'='*80}")
-    print(f"BENCHMARK RESULTS")
-    print(f"{'='*80}")
-    print(f"Prompt tokens: {total_prompt_tokens}")
-    print(f"Completion tokens: {total_completion_tokens}")
-    print(f"Total tokens: {total_tokens}")
-    print(f"Time: {t:.2f}s")
-    print(f"Throughput: {throughput:.2f} tok/s")
-    print(f"{'='*80}\n")
+    print(f"Total: {total_tokens}tok, Time: {t:.2f}s, Throughput: {throughput:.2f}tok/s")
 
 
 if __name__ == "__main__":

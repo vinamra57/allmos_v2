@@ -523,8 +523,8 @@ class ModelRunner(ModelRunnerABC):
         # Run model
         logits = self.run_model(input_ids, positions, is_prefill)
 
-        # Sample tokens (rank 0 only)
-        token_ids = self.sampler(logits, temperatures).tolist() if self.rank == 0 else None
+        # Sample tokens (rank 0 only) - keep as tensor for speed
+        token_ids = self.sampler(logits, temperatures) if self.rank == 0 else None
 
         # Reset context
         reset_context()
