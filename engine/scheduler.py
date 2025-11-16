@@ -217,8 +217,14 @@ class Scheduler(SchedulerABC):
             # Check if this sequence was doing prefill
             if was_prefill and seq.has_remaining_prefill:
                 # Mark prefill chunk as computed (don't append token yet)
+                chunk_start = seq.num_prefill_tokens_computed
                 chunk_size = seq.get_next_prefill_chunk_size()
+                chunk_end = chunk_start + chunk_size
                 seq.mark_prefill_chunk_computed(chunk_size)
+
+                # Update block hashes for any blocks filled by this chunk
+                self.block_manager.update_hashes_after_prefill_chunk(seq, chunk_start, chunk_end)
+
                 # Skip token append - still more prefill chunks to process
                 continue
 

@@ -242,3 +242,38 @@ class BlockManager(BlockManagerABC):
         else:
             # Middle of block, nothing to do
             assert last_block.hash == -1, "Partial block shouldn't have hash"
+
+    def update_hashes_after_prefill_chunk(self, seq: Sequence, chunk_start: int, chunk_end: int) -> None:
+        """
+        Update block hashes after processing a prefill chunk.
+
+        During chunked prefill, we process tokens in chunks. After each chunk,
+        we need to compute and store hashes for any blocks that got filled.
+
+        Args:
+            seq: Sequence that just processed a chunk
+            chunk_start: Start index of the chunk (inclusive)
+            chunk_end: End index of the chunk (exclusive)
+        """
+        block_table = seq.block_table
+
+        # Determine which blocks were affected by this chunk
+        start_block_idx = chunk_start // self.block_size
+        end_block_idx = (chunk_end - 1) // self.block_size  # Inclusive
+
+        # Update hashes for all complete blocks in this range
+        for block_idx in range(start_block_idx, end_block_idx + 1):
+            block = self.blocks[block_table[block_idx]]
+
+            # Calculate how many tokens are in this block after the chunk
+            block_start_token = block_idx * self.block_size
+            block_end_token = min((block_idx + 1) * self.block_size, chunk_end)
+            tokens_in_block = block_end_token - block_start_token + (chunk_start - block_start_token if block_idx == start_block_idx and chunk_start > block_start_token else 0)
+
+            # If block is complete (has 256 tokens) and doesn't have a hash yet, compute it
+            if block_end_token == (block_idx + 1) * self.block_size and block.hash == -1:
+                token_ids = seq.block(block_idx)
+                prefix = self.blocks[block_table[block_idx - 1]].hash if block_idx > 0 else -1
+                h = self.compute_hash(token_ids, prefix)
+                block.update(h, token_ids)
+                self.hash_to_block_id[h] = block.block_id
