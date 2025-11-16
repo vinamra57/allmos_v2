@@ -25,7 +25,7 @@ class Sampler(nn.Module):
     def __init__(self):
         super().__init__()
 
-    @torch.compile
+    @torch.compile(mode="max-autotune", fullgraph=True)
     def forward(
         self,
         logits: torch.Tensor,
