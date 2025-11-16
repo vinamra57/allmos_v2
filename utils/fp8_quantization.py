@@ -49,7 +49,7 @@ class FP8Linear(nn.Module):
         )
 
         if bias:
-            self.bias = nn.Parameter(torch.zeros(out_features, dtype=torch.float32, device='cuda'))
+            self.bias = nn.Parameter(torch.zeros(out_features, dtype=torch.float16, device='cuda'))
         else:
             self.register_parameter('bias', None)
 
@@ -142,7 +142,8 @@ class FP8Linear(nn.Module):
         weight_fp16 = self.dequantize_fp8(self.weight_fp8, self.weight_scale)
 
         # Standard matmul in FP16
-        output = torch.nn.functional.linear(x, weight_fp16, self.bias)
+        bias_fp16 = self.bias.to(torch.float16) if self.bias is not None else None
+        output = torch.nn.functional.linear(x, weight_fp16, bias_fp16)
 
         return output
 
@@ -170,7 +171,7 @@ class FP8Linear(nn.Module):
 
         # Copy bias
         if linear.bias is not None:
-            fp8_linear.bias.data.copy_(linear.bias.data.to(torch.float32).cuda())
+            fp8_linear.bias.data.copy_(linear.bias.data.to(torch.float16).cuda())
 
         return fp8_linear
 
