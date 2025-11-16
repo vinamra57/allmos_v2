@@ -21,10 +21,10 @@ class Config:
 
     # Batching configuration
     max_num_seqs: int = 512
-    max_num_batched_tokens: int = 16384
+    max_num_batched_tokens: int = 32768  # Increased from 16384 for better GPU utilization
 
     # Memory configuration
-    gpu_memory_utilization: float = 0.9
+    gpu_memory_utilization: float = 0.95  # Increased from 0.9 for more KV cache blocks
     kvcache_block_size: int = 256
     num_kvcache_blocks: int = -1  # Auto-computed
 
