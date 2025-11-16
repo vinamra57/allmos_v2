@@ -22,6 +22,7 @@ class Config:
     # Batching configuration
     max_num_seqs: int = 512
     max_num_batched_tokens: int = 16384  # Original baseline setting
+    prefill_chunk_size: int = 512  # For chunked prefill (not actively used)
 
     # Memory configuration
     gpu_memory_utilization: float = 0.90  # Balance between KV cache and activation memory
