@@ -93,18 +93,25 @@ def store_kvcache(
         v_cache: [num_blocks, block_size, num_kv_heads, head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    N = key.size(0)
+    # Use vectorized operations to avoid .item() calls (required for CUDA graph capture)
+    block_size = k_cache.size(1)
 
-    # Note: Triton kernel disabled - PyTorch fallback is fast enough for KV cache storage
-    # Use PyTorch advanced indexing for simplicity and compatibility with 4D cache
-    for i in range(N):
-        slot = slot_mapping[i].item()
-        if slot == -1:
-            continue
-        block_idx = slot // k_cache.size(1)
-        slot_idx = slot % k_cache.size(1)
-        k_cache[block_idx, slot_idx] = key[i]
-        v_cache[block_idx, slot_idx] = value[i]
+    # Filter out invalid slots (-1)
+    valid_mask = slot_mapping != -1
+    valid_slots = slot_mapping[valid_mask]
+    valid_keys = key[valid_mask]
+    valid_values = value[valid_mask]
+
+    if valid_slots.numel() == 0:
+        return
+
+    # Compute block and slot indices
+    block_indices = valid_slots // block_size
+    slot_indices = valid_slots % block_size
+
+    # Store using advanced indexing (fully vectorized, CUDA graph compatible)
+    k_cache[block_indices, slot_indices] = valid_keys
+    v_cache[block_indices, slot_indices] = valid_values
 
 
 class Attention(nn.Module):
