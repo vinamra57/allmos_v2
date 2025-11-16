@@ -216,9 +216,11 @@ class Scheduler(SchedulerABC):
         for seq, token_id in zip(seqs, token_ids):
             # Check if this sequence was doing prefill
             if was_prefill and seq.has_remaining_prefill:
-                # Mark prefill chunk as computed
+                # Mark prefill chunk as computed (don't append token yet)
                 chunk_size = seq.get_next_prefill_chunk_size()
                 seq.mark_prefill_chunk_computed(chunk_size)
+                # Skip token append - still more prefill chunks to process
+                continue
 
             # Append the generated token (first token after prefill, or next decode token)
             seq.append_token(token_id)
