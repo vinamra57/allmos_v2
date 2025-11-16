@@ -22,6 +22,7 @@ class Config:
     # Batching configuration
     max_num_seqs: int = 512
     max_num_batched_tokens: int = 32768  # Increased from 16384 for better GPU utilization
+    prefill_chunk_size: int = 512  # Chunked prefill: process long prompts in chunks
 
     # Memory configuration
     gpu_memory_utilization: float = 0.95  # Increased from 0.9 for more KV cache blocks

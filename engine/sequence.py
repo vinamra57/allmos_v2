@@ -40,6 +40,7 @@ class Sequence:
 
     # Class-level configuration and counter
     block_size: int = 256  # Must match config.kvcache_block_size
+    chunk_size: int = 512  # Must match config.prefill_chunk_size
     _counter = count()
 
     def __init__(self, token_ids: List[int], sampling_params: SamplingParams = None):
@@ -62,6 +63,9 @@ class Sequence:
         # KV cache management
         self.num_cached_tokens = 0
         self.block_table: List[int] = []
+
+        # Chunked prefill tracking
+        self.num_prefill_tokens_computed = 0  # How many prompt tokens have been processed
 
         # Sampling configuration
         if sampling_params is None:
@@ -127,6 +131,36 @@ class Sequence:
         start = i * self.block_size
         end = min(start + self.block_size, self.num_tokens)
         return self.token_ids[start:end]
+
+    @property
+    def has_remaining_prefill(self) -> bool:
+        """Check if sequence has unprocessed prompt tokens."""
+        return self.num_prefill_tokens_computed < self.num_prompt_tokens
+
+    @property
+    def num_remaining_prefill_tokens(self) -> int:
+        """Number of prompt tokens not yet processed."""
+        return self.num_prompt_tokens - self.num_prefill_tokens_computed
+
+    def get_next_prefill_chunk_size(self) -> int:
+        """
+        Get size of next prefill chunk to process.
+
+        Returns:
+            Number of tokens in next chunk (up to chunk_size)
+        """
+        remaining = self.num_remaining_prefill_tokens
+        return min(remaining, self.chunk_size)
+
+    def mark_prefill_chunk_computed(self, num_tokens: int) -> None:
+        """
+        Mark that a chunk of prefill tokens has been computed.
+
+        Args:
+            num_tokens: Number of tokens just processed
+        """
+        self.num_prefill_tokens_computed += num_tokens
+        assert self.num_prefill_tokens_computed <= self.num_prompt_tokens
 
     def append_token(self, token_id: int) -> None:
         """

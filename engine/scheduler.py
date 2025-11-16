@@ -52,6 +52,9 @@ class Scheduler(SchedulerABC):
         self.max_num_batched_tokens = config.max_num_batched_tokens
         self.eos_token_id = config.eos_token_id
 
+        # Set class-level configuration for Sequence
+        Sequence.chunk_size = config.prefill_chunk_size
+
         # Block manager for KV cache memory
         self.block_manager = BlockManager(
             config.num_kvcache_blocks,
@@ -82,80 +85,102 @@ class Scheduler(SchedulerABC):
 
     def schedule(self) -> Tuple[List[Sequence], bool]:
         """
-        Schedule sequences for the next execution step.
+        Schedule sequences for the next execution step with chunked prefill.
 
-        Strategy:
-        1. Prefill phase: Schedule waiting sequences (first token generation)
-           - Try to schedule as many as fit within token/memory budgets
-           - Each sequence processes all prompt tokens at once
+        Strategy (decode-maximal batching):
+        1. Decode phase FIRST: Schedule all running sequences in decode phase
+           - Each generates one token
+           - Prioritized for low latency
 
-        2. Decode phase: Schedule running sequences (subsequent tokens)
-           - Each sequence generates one token
-           - Handle preemption if memory is insufficient
+        2. Prefill chunks: Fill remaining capacity with prefill chunks
+           - From waiting sequences (new requests)
+           - Or running sequences still processing prompt (chunked prefill)
+           - Chunks limited by chunk_size (default 512 tokens)
+
+        This mixes decode and prefill in same batch for better GPU utilization.
 
         Returns:
             Tuple of (sequences_to_run, is_prefill)
+            - is_prefill=True if ANY sequence is doing prefill (even if mixed batch)
         """
-        # Try prefill phase first (prioritize new sequences)
         scheduled_seqs = []
         num_seqs = 0
         num_batched_tokens = 0
+        has_prefill = False
 
+        # PHASE 1: Schedule all decode requests first (decode-maximal)
+        # Iterate through running queue to find sequences ready for decode
+        decode_seqs = []
+        for seq in list(self.running):
+            # Sequence is in decode if it has completed all prefill
+            if not seq.has_remaining_prefill:
+                # Check if we can append a token
+                if not self.block_manager.can_append(seq):
+                    continue  # Skip, will handle preemption later if needed
+
+                # Check token budget (decode = 1 token per seq)
+                if num_batched_tokens + 1 <= self.max_num_batched_tokens and num_seqs < self.max_num_seqs:
+                    decode_seqs.append(seq)
+                    num_batched_tokens += 1
+                    num_seqs += 1
+
+        # Reserve memory for decode tokens
+        for seq in decode_seqs:
+            self.block_manager.may_append(seq)
+            scheduled_seqs.append(seq)
+
+        # PHASE 2: Fill remaining capacity with prefill chunks
+        # Try running sequences that still have prefill remaining (chunked prefill)
+        for seq in list(self.running):
+            if seq.has_remaining_prefill and seq not in scheduled_seqs:
+                chunk_size = seq.get_next_prefill_chunk_size()
+
+                # Check constraints
+                if (num_batched_tokens + chunk_size > self.max_num_batched_tokens or
+                    num_seqs >= self.max_num_seqs):
+                    break
+
+                # Schedule this prefill chunk
+                scheduled_seqs.append(seq)
+                num_batched_tokens += chunk_size
+                num_seqs += 1
+                has_prefill = True
+
+        # Try new waiting sequences if still have capacity
         while self.waiting and num_seqs < self.max_num_seqs:
             seq = self.waiting[0]
 
-            # Check constraints:
-            # 1. Token budget: Don't exceed max_num_batched_tokens
-            # 2. Memory budget: Check if we can allocate blocks
-            tokens_needed = len(seq) - seq.num_cached_tokens
+            # Calculate tokens needed for first chunk
+            tokens_needed = min(
+                seq.num_prompt_tokens - seq.num_cached_tokens,
+                seq.chunk_size
+            )
 
+            # Check constraints
             if (num_batched_tokens + tokens_needed > self.max_num_batched_tokens or
                 not self.block_manager.can_allocate(seq)):
-                # Can't schedule this sequence, stop trying
                 break
 
-            # Schedule the sequence
-            num_seqs += 1
+            # Allocate and schedule
             self.block_manager.allocate(seq)
-            num_batched_tokens += tokens_needed
             seq.status = SequenceStatus.RUNNING
+            scheduled_seqs.append(seq)
+            num_batched_tokens += tokens_needed
+            num_seqs += 1
+            has_prefill = True
 
-            # Move from waiting to running
+            # Move to running queue
             self.waiting.popleft()
             self.running.append(seq)
-            scheduled_seqs.append(seq)
 
-        # If we scheduled any prefill sequences, return them
-        if scheduled_seqs:
-            return scheduled_seqs, True
-
-        # Decode phase: Schedule running sequences
-        while self.running and num_seqs < self.max_num_seqs:
-            seq = self.running.popleft()
-
-            # Check if we can append a token (may need new block)
-            while not self.block_manager.can_append(seq):
-                if self.running:
-                    # Preempt a sequence to free memory
-                    victim = self.running.pop()
-                    self.preempt(victim)
-                else:
-                    # No other sequences to preempt, preempt this one
-                    self.preempt(seq)
-                    break
-            else:
-                # Successfully reserved space for append
-                num_seqs += 1
-                self.block_manager.may_append(seq)
-                scheduled_seqs.append(seq)
-
-        # Must have at least one sequence to run
+        # Must have at least one sequence
         assert scheduled_seqs, "No sequences could be scheduled!"
 
-        # Put scheduled sequences back at front of running queue
-        self.running.extendleft(reversed(scheduled_seqs))
+        # Determine if this is a prefill or decode batch
+        # We mark it as prefill if ANY sequence is doing prefill
+        is_prefill = has_prefill or len(decode_seqs) == 0
 
-        return scheduled_seqs, False
+        return scheduled_seqs, is_prefill
 
     def preempt(self, seq: Sequence) -> None:
         """
@@ -170,24 +195,35 @@ class Scheduler(SchedulerABC):
         self.block_manager.deallocate(seq)
         self.waiting.appendleft(seq)
 
-    def postprocess(self, seqs: List[Sequence], token_ids: List[int]) -> None:
+    def postprocess(
+        self,
+        seqs: List[Sequence],
+        token_ids: List[int],
+        was_prefill: bool
+    ) -> None:
         """
         Process generated tokens and update sequence states.
 
-        For each sequence:
-        1. Append the generated token
-        2. Check if generation is complete (EOS or max_tokens reached)
-        3. If complete, deallocate memory and remove from running queue
+        With chunked prefill:
+        - If sequence was in prefill: mark chunk computed, append first generated token
+        - If sequence was in decode: append next generated token
 
         Args:
-            seqs: Sequences that just generated tokens
+            seqs: Sequences that just executed
             token_ids: Generated token IDs (one per sequence)
+            was_prefill: Whether this batch included any prefill
         """
         for seq, token_id in zip(seqs, token_ids):
-            # Append the new token
+            # Check if this sequence was doing prefill
+            if was_prefill and seq.has_remaining_prefill:
+                # Mark prefill chunk as computed
+                chunk_size = seq.get_next_prefill_chunk_size()
+                seq.mark_prefill_chunk_computed(chunk_size)
+
+            # Append the generated token (first token after prefill, or next decode token)
             seq.append_token(token_id)
 
-            # Check stopping criteria
+            # Check stopping criteria (only for decode phase)
             is_eos = (not seq.ignore_eos and token_id == self.eos_token_id)
             is_max_len = (seq.num_completion_tokens == seq.max_tokens)
 

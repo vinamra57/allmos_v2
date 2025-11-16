@@ -296,10 +296,11 @@ class ModelRunner(ModelRunnerABC):
 
     def prepare_prefill(self, seqs: List[Sequence]) -> tuple:
         """
-        Prepare input tensors for prefill phase.
+        Prepare input tensors for prefill phase with chunked prefill support.
 
-        Prefill processes all prompt tokens at once (variable length per sequence).
-        Uses varlen (variable length) Flash Attention for efficiency.
+        With chunked prefill:
+        - Process only the current chunk of prompt tokens
+        - Chunk defined by [num_prefill_tokens_computed, num_prefill_tokens_computed + chunk_size]
 
         Args:
             seqs: Sequences to process
@@ -317,14 +318,25 @@ class ModelRunner(ModelRunnerABC):
         block_tables = None
 
         for seq in seqs:
-            seqlen = len(seq)
+            # For chunked prefill: only process current chunk
+            if seq.has_remaining_prefill:
+                # Prefill chunk
+                start_idx = seq.num_prefill_tokens_computed
+                chunk_size = seq.get_next_prefill_chunk_size()
+                end_idx = start_idx + chunk_size
 
-            # Only process uncached tokens
-            input_ids.extend(seq[seq.num_cached_tokens:])
-            positions.extend(list(range(seq.num_cached_tokens, seqlen)))
+                # Extract chunk tokens
+                input_ids.extend(seq[start_idx:end_idx])
+                positions.extend(list(range(start_idx, end_idx)))
 
-            seqlen_q = seqlen - seq.num_cached_tokens  # New tokens
-            seqlen_k = seqlen  # All tokens (including cached)
+                seqlen_q = chunk_size  # New tokens in this chunk
+                seqlen_k = end_idx  # All tokens up to end of chunk
+            else:
+                # Decode in mixed batch (some sequences finished prefill, others still chunking)
+                input_ids.append(seq.last_token)
+                positions.append(len(seq) - 1)
+                seqlen_q = 1
+                seqlen_k = len(seq)
 
             cu_seqlens_q.append(cu_seqlens_q[-1] + seqlen_q)
             cu_seqlens_k.append(cu_seqlens_k[-1] + seqlen_k)
@@ -335,16 +347,25 @@ class ModelRunner(ModelRunnerABC):
             if not seq.block_table:
                 continue
 
-            # Map tokens to KV cache slots
-            for i in range(seq.num_cached_blocks, seq.num_blocks):
-                start = seq.block_table[i] * self.block_size
-                if i != seq.num_blocks - 1:
-                    # Full block
-                    end = start + self.block_size
-                else:
-                    # Last block (may be partial)
-                    end = start + seq.last_block_num_tokens
-                slot_mapping.extend(list(range(start, end)))
+            # Map tokens to KV cache slots (only for tokens being processed)
+            if seq.has_remaining_prefill:
+                # Chunked prefill: map slots for current chunk only [start_idx, end_idx)
+                start_idx = seq.num_prefill_tokens_computed
+                chunk_size = seq.get_next_prefill_chunk_size()
+                end_idx = start_idx + chunk_size
+
+                for token_idx in range(start_idx, end_idx):
+                    block_idx = token_idx // self.block_size
+                    slot_idx = token_idx % self.block_size
+                    slot = seq.block_table[block_idx] * self.block_size + slot_idx
+                    slot_mapping.append(slot)
+            else:
+                # Decode: map slot for single new token at position len(seq) - 1
+                token_idx = len(seq) - 1
+                block_idx = token_idx // self.block_size
+                slot_idx = token_idx % self.block_size
+                slot = seq.block_table[block_idx] * self.block_size + slot_idx
+                slot_mapping.append(slot)
 
         # Check if we have prefix caching (more keys than queries)
         if cu_seqlens_k[-1] > cu_seqlens_q[-1]:

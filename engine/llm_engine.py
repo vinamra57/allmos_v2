@@ -147,7 +147,7 @@ class LLMEngine(LLMEngineABC):
         token_ids = self.model_runner.call("run", seqs, is_prefill)
 
         # Postprocess
-        self.scheduler.postprocess(seqs, token_ids)
+        self.scheduler.postprocess(seqs, token_ids, is_prefill)
 
         # Collect finished sequences
         outputs = [
