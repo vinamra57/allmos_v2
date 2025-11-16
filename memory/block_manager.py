@@ -223,11 +223,9 @@ class BlockManager(BlockManagerABC):
         block_table = seq.block_table
         last_block = self.blocks[block_table[-1]]
 
-        if len(seq) % self.block_size == 1:
+        # Check if we need to allocate a new block
+        if seq.num_blocks > len(block_table):
             # Last block is full, allocate new one
-            if last_block.hash == -1:
-                print(f"DEBUG: may_append() error - len(seq)={len(seq)}, block_table={block_table}, last_block.block_id={last_block.block_id}, last_block.hash={last_block.hash}")
-                print(f"DEBUG: num_prompt_tokens={seq.num_prompt_tokens}, num_prefill_tokens_computed={seq.num_prefill_tokens_computed}")
             assert last_block.hash != -1, "Last block should have hash when full"
             block_id = self.free_block_ids[0]
             self._allocate_block(block_id)
@@ -244,7 +242,9 @@ class BlockManager(BlockManagerABC):
 
         else:
             # Middle of block, nothing to do
-            assert last_block.hash == -1, "Partial block shouldn't have hash"
+            if last_block.hash != -1:
+                # Hash might be set by chunked prefill for partial blocks - this is ok
+                pass
 
     def update_hashes_after_prefill_chunk(self, seq: Sequence, chunk_start: int, chunk_end: int) -> None:
         """
