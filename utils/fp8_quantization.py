@@ -107,7 +107,7 @@ class FP8Linear(nn.Module):
         Returns:
             Dequantized FP16/BF16 tensor
         """
-        return quantized.to(torch.float16) * scale
+        return quantized.to(torch.float16) * scale.to(torch.float16)
 
     def quantize_weights(self, weight: torch.Tensor):
         """
