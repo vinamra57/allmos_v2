@@ -89,42 +89,22 @@ def store_kvcache(
     Args:
         key: [N, num_kv_heads, head_dim] key states
         value: [N, num_kv_heads, head_dim] value states
-        k_cache: [num_blocks, block_size, num_kv_heads * head_dim] key cache
-        v_cache: [num_blocks, block_size, num_kv_heads * head_dim] value cache
+        k_cache: [num_blocks, block_size, num_kv_heads, head_dim] key cache
+        v_cache: [num_blocks, block_size, num_kv_heads, head_dim] value cache
         slot_mapping: [N] mapping from token index to cache slot
     """
-    N, num_kv_heads, head_dim = key.shape
-    D = num_kv_heads * head_dim
+    N = key.size(0)
 
-    # Note: Triton kernel disabled due to stride compatibility issues with flattened cache
-    # The PyTorch fallback is fast enough for KV cache storage
-    if False and TRITON_AVAILABLE:
-        # Fast path: use Triton kernel
-        assert key.stride(-1) == 1 and value.stride(-1) == 1, "Last dim must be contiguous"
-        assert key.stride(1) == head_dim and value.stride(1) == head_dim
-        assert k_cache.stride(1) == D and v_cache.stride(1) == D
-        assert slot_mapping.numel() == N
-
-        store_kvcache_kernel[(N,)](
-            key, key.stride(0),
-            value, value.stride(0),
-            k_cache, v_cache,
-            slot_mapping,
-            D
-        )
-    else:
-        # Fallback: use PyTorch indexing
-        key = key.reshape(N, D)
-        value = value.reshape(N, D)
-
-        for i in range(N):
-            slot = slot_mapping[i].item()
-            if slot == -1:
-                continue
-            block_idx = slot // k_cache.size(1)
-            slot_idx = slot % k_cache.size(1)
-            k_cache[block_idx, slot_idx] = key[i]
-            v_cache[block_idx, slot_idx] = value[i]
+    # Note: Triton kernel disabled - PyTorch fallback is fast enough for KV cache storage
+    # Use PyTorch advanced indexing for simplicity and compatibility with 4D cache
+    for i in range(N):
+        slot = slot_mapping[i].item()
+        if slot == -1:
+            continue
+        block_idx = slot // k_cache.size(1)
+        slot_idx = slot % k_cache.size(1)
+        k_cache[block_idx, slot_idx] = key[i]
+        v_cache[block_idx, slot_idx] = value[i]
 
 
 class Attention(nn.Module):
