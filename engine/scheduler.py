@@ -184,6 +184,9 @@ class Scheduler(SchedulerABC):
             token_ids: Generated token IDs (one per sequence)
         """
         for seq, token_id in zip(seqs, token_ids):
+            # Convert tensor to int if needed
+            token_id = int(token_id.item()) if hasattr(token_id, 'item') else int(token_id)
+
             # Append the new token
             seq.append_token(token_id)
 
