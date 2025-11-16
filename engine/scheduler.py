@@ -174,7 +174,7 @@ class Scheduler(SchedulerABC):
 
         # Determine if this is a prefill or decode batch
         # We mark it as prefill if ANY sequence is doing prefill
-        is_prefill = has_prefill or len(decode_seqs) == 0
+        is_prefill = has_prefill
 
         return scheduled_seqs, is_prefill
 
