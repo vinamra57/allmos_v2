@@ -110,7 +110,6 @@ class Scheduler(SchedulerABC):
 
         # PHASE 1: Schedule all decode requests first (decode-maximal)
         # Iterate through running queue to find sequences ready for decode
-        decode_seqs = []
         for seq in list(self.running):
             # Sequence is in decode if it has completed all prefill
             if not seq.has_remaining_prefill:
@@ -120,14 +119,11 @@ class Scheduler(SchedulerABC):
 
                 # Check token budget (decode = 1 token per seq)
                 if num_batched_tokens + 1 <= self.max_num_batched_tokens and num_seqs < self.max_num_seqs:
-                    decode_seqs.append(seq)
+                    # Reserve memory for decode token
+                    self.block_manager.may_append(seq)
+                    scheduled_seqs.append(seq)
                     num_batched_tokens += 1
                     num_seqs += 1
-
-        # Reserve memory for decode tokens
-        for seq in decode_seqs:
-            self.block_manager.may_append(seq)
-            scheduled_seqs.append(seq)
 
         # PHASE 2: Fill remaining capacity with prefill chunks
         # Try running sequences that still have prefill remaining (chunked prefill)
