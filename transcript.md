@@ -20,17 +20,19 @@ This research explores the capabilities and limitations of AI coding agents in d
 ---
 
 ### **Slide 2: Development Velocity & Cost Efficiency**
-**Title:** 5.5x Faster Development with Comparable Performance
+**Title:** 4x Faster Development with Comparable Performance
 
 **Key Statistics:**
 | Metric | nano-vLLM (Human) | allmos_v2 (AI-Assisted) | Improvement |
 |--------|-------------------|------------------------|-------------|
-| **Development Time** | 82 days | 15 days | **5.5x faster** |
-| **Lines of Code** | ~1,200 (core) | ~3,500 (with docs) | Better documented |
+| **Development Time** | 147 days | 35 days | **4x faster** |
+| **Lines of Code** | ~1,200 | ~2,200 | N/A |
 | **Performance** | 1,760 tok/s | 1,739 tok/s | **98.8% parity** |
 | **Speedup vs Baseline** | 77.1x | 76.2x | Comparable |
 
-**Total Infrastructure Cost:** $220.71 over 2 months (L4 GPU on GCP)
+**Infrastructure Cost:** $220.71 over 2 months (L4 GPU on GCP)
+
+**Claude Cost:** $44.14 over 2 months (Pro subscription)
 
 ---
 
